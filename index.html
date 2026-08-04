@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Amazon Sales Estimator | Stack Influence</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --si-purple: #8551f5;
+    --si-purple-deep: #642eff;
+    --si-purple-light: #c3a4ff;
+    --si-purple-wash: #f0ecfb;
+    --si-pink: #ffabb9;
+    --si-pink-light: #fbe1e6;
+    --si-pink-over: #dd5290;
+    --si-ink: #141a21;
+    --si-grey: #667085;
+    --si-line: #e6e2ee;
+    --si-paper: #ffffff;
+    --si-bg: #f9f8f4;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: transparent; }
+
+  body {
+    font-family: 'Inter Tight', Arial, sans-serif;
+    color: var(--si-ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .si-wrap { max-width: 940px; margin: 0 auto; padding: 8px 20px 40px; }
+
+  /* ---- Input bar (the only thing above the fold) ---- */
+  .si-panel {
+    background: var(--si-paper);
+    border: 1px solid var(--si-line);
+    border-radius: 16px;
+    padding: 22px;
+  }
+
+  .si-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    align-items: end;
+  }
+  @media (max-width: 720px) {
+    .si-row { grid-template-columns: 1fr; gap: 14px; }
+  }
+
+  .si-field { display: flex; flex-direction: column; min-width: 0; }
+  .si-label { font-size: 13px; font-weight: 600; margin-bottom: 7px; color: var(--si-ink); }
+  .si-hint { font-size: 11px; font-weight: 500; color: var(--si-grey); margin-top: 6px; }
+
+  .si-input, .si-select {
+    width: 100%;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--si-ink);
+    background: var(--si-bg);
+    border: 1px solid var(--si-line);
+    border-radius: 10px;
+    padding: 12px 13px;
+    transition: border-color .15s, box-shadow .15s;
+    appearance: none;
+    height: 46px;
+  }
+  .si-input::placeholder { color: #a4adba; }
+
+  /* Price field with a leading dollar sign */
+  .si-money { position: relative; }
+  .si-money .si-cur {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    font-size: 15px; color: var(--si-grey); pointer-events: none;
+  }
+  .si-money .si-input { padding-left: 26px; }
+
+  .si-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+    padding-right: 38px;
+    cursor: pointer;
+  }
+  .si-input:focus, .si-select:focus {
+    outline: none;
+    border-color: var(--si-purple);
+    box-shadow: 0 0 0 3px var(--si-purple-wash);
+    background: var(--si-paper);
+  }
+  /* hide number spinners */
+  .si-input[type=number]::-webkit-outer-spin-button,
+  .si-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .si-input[type=number] { -moz-appearance: textfield; }
+
+  .si-actions { margin-top: 16px; }
+  .si-btn {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--si-purple);
+    border: none;
+    border-radius: 10px;
+    padding: 15px 20px;
+    cursor: pointer;
+    transition: background .15s, transform .05s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+  }
+  .si-btn:hover:not(:disabled) { background: var(--si-purple-deep); }
+  .si-btn:active:not(:disabled) { transform: translateY(1px); }
+
+  /* ---- Everything below is hidden until estimate ---- */
+  .si-results { margin-top: 26px; display: none; }
+  .si-results.show { display: block; animation: si-fade .3s ease both; }
+  @keyframes si-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .si-results-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+  }
+  .si-results-title {
+    font-family: 'Instrument Serif', 'Times New Roman', serif;
+    font-size: 28px; font-weight: 400; margin: 0;
+  }
+  .si-results-title em { font-style: italic; color: var(--si-purple); }
+  .si-copy {
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--si-purple-deep); background: var(--si-purple-wash);
+    border: none; border-radius: 8px; padding: 8px 15px; cursor: pointer;
+    transition: background .15s;
+  }
+  .si-copy:hover { background: #e5dcfb; }
+  .si-copy.done { background: var(--si-purple); color: #fff; }
+
+  /* Hero: monthly units + monthly revenue */
+  .si-hero {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 13px;
+  }
+  @media (max-width: 560px) { .si-hero { grid-template-columns: 1fr; } }
+
+  .si-stat {
+    border: 1px solid var(--si-line); border-radius: 14px;
+    padding: 20px; background: var(--si-paper);
+    animation: si-pop .3s ease both;
+  }
+  .si-stat.primary {
+    background: var(--si-purple-wash); border-color: var(--si-purple-light);
+  }
+  @keyframes si-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .si-stat-label { font-size: 13px; font-weight: 600; color: var(--si-grey); margin-bottom: 8px; }
+  .si-stat.primary .si-stat-label { color: var(--si-purple-deep); }
+  .si-stat-value {
+    font-family: 'Instrument Serif', 'Times New Roman', serif;
+    font-size: 40px; line-height: 1.05; font-weight: 400; color: var(--si-ink);
+  }
+  .si-stat.primary .si-stat-value { color: var(--si-purple-deep); }
+  .si-stat-unit { font-family: 'Inter Tight', sans-serif; font-size: 14px; font-weight: 500; color: var(--si-grey); margin-top: 6px; }
+
+  /* Supporting row: daily breakdown */
+  .si-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .si-sub { grid-template-columns: 1fr; } }
+  .si-sub .si-stat-value { font-size: 28px; }
+
+  /* Disclaimer */
+  .si-note {
+    margin-top: 16px; font-size: 12px; color: var(--si-grey);
+    background: var(--si-bg); border: 1px solid var(--si-line);
+    border-radius: 10px; padding: 12px 14px;
+  }
+
+  /* ---- Error ---- */
+  .si-error {
+    display: none; margin-top: 20px; padding: 14px 16px; border-radius: 12px;
+    background: var(--si-pink-light); border: 1px solid var(--si-pink);
+    color: #8a2338; font-size: 14px;
+  }
+  .si-error.show { display: block; }
+</style>
+</head>
+<body>
+<div class="si-wrap">
+
+  <!-- INPUT BAR: the only thing visible above the fold -->
+  <div class="si-panel">
+    <div class="si-row">
+      <div class="si-field">
+        <label class="si-label" for="si-bsr">Best Seller Rank (BSR)</label>
+        <input class="si-input" id="si-bsr" type="number" min="1" step="1" placeholder="e.g. 5000" inputmode="numeric" />
+        <span class="si-hint">Find this in the product details on Amazon</span>
+      </div>
+      <div class="si-field">
+        <label class="si-label" for="si-price">List price</label>
+        <div class="si-money">
+          <span class="si-cur">$</span>
+          <input class="si-input" id="si-price" type="number" min="0" step="0.01" placeholder="29.99" inputmode="decimal" />
+        </div>
+        <span class="si-hint">The current selling price</span>
+      </div>
+      <div class="si-field">
+        <label class="si-label" for="si-market">Marketplace</label>
+        <select class="si-select" id="si-market">
+          <option value="us" selected>Amazon.com (US)</option>
+        </select>
+        <span class="si-hint">United States storefront</span>
+      </div>
+    </div>
+    <div class="si-actions">
+      <button class="si-btn" id="si-estimate" type="button">
+        <span class="si-btn-label">Estimate sales</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="si-error" id="si-error"></div>
+
+  <!-- RESULTS: hidden until estimate -->
+  <div class="si-results" id="si-results">
+    <div class="si-results-head">
+      <h2 class="si-results-title">Your <em>estimate</em></h2>
+      <button class="si-copy" id="si-copy" type="button">Copy estimate</button>
+    </div>
+
+    <div class="si-hero">
+      <div class="si-stat primary">
+        <div class="si-stat-label">Estimated monthly sales</div>
+        <div class="si-stat-value" id="si-units">0</div>
+        <div class="si-stat-unit">units per month</div>
+      </div>
+      <div class="si-stat">
+        <div class="si-stat-label">Estimated monthly revenue</div>
+        <div class="si-stat-value" id="si-revenue">$0</div>
+        <div class="si-stat-unit">at your list price</div>
+      </div>
+    </div>
+
+    <div class="si-sub">
+      <div class="si-stat">
+        <div class="si-stat-label">Estimated daily sales</div>
+        <div class="si-stat-value" id="si-dunits">0</div>
+        <div class="si-stat-unit">units per day</div>
+      </div>
+      <div class="si-stat">
+        <div class="si-stat-label">Estimated daily revenue</div>
+        <div class="si-stat-value" id="si-drevenue">$0</div>
+        <div class="si-stat-unit">per day</div>
+      </div>
+    </div>
+
+    <div class="si-note" id="si-note"></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var btn = $('si-estimate');
+  var resultsBox = $('si-results');
+  var errorBox = $('si-error');
+
+  // ---- Auto-resize: tell the parent Webflow page how tall the iframe should be ----
+  function postHeight() {
+    var h = document.body.scrollHeight;
+    if (window.parent) { window.parent.postMessage({ siEstHeight: h }, "*"); }
+  }
+  var ro = new ResizeObserver(postHeight);
+  ro.observe(document.body);
+  window.addEventListener('load', postHeight);
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add('show');
+    resultsBox.classList.remove('show');
+    postHeight();
+  }
+  function clearError() {
+    errorBox.classList.remove('show');
+    errorBox.textContent = "";
+  }
+
+  // ---- BSR to monthly-sales model ----------------------------------------
+  // Blended, category-agnostic curve for the US marketplace. Anchor points are
+  // interpolated on a log-log scale (a local power law between each pair), which
+  // is the same shape the paid tools fit to their private data. Deterministic:
+  // the same BSR and price always return the same numbers. This is a guidance
+  // estimate, not a guarantee, and real category curves vary widely.
+  var ANCHORS = [
+    [1, 15000],
+    [5, 11000],
+    [10, 8000],
+    [25, 5500],
+    [50, 4000],
+    [100, 2800],
+    [250, 1500],
+    [500, 950],
+    [1000, 600],
+    [2000, 380],
+    [3000, 280],
+    [5000, 180],
+    [7500, 120],
+    [10000, 90],
+    [15000, 60],
+    [25000, 38],
+    [50000, 18],
+    [75000, 11],
+    [100000, 7],
+    [250000, 2.5],
+    [500000, 1],
+    [750000, 0.5],
+    [1000000, 0.3]
+  ];
+
+  function estimateMonthlyUnits(bsr) {
+    if (bsr <= ANCHORS[0][0]) return ANCHORS[0][1];
+    var last = ANCHORS[ANCHORS.length - 1];
+    if (bsr >= last[0]) {
+      var a = ANCHORS[ANCHORS.length - 2];
+      var b = last;
+      var slope = (Math.log(b[1]) - Math.log(a[1])) / (Math.log(b[0]) - Math.log(a[0]));
+      var logUnits = Math.log(b[1]) + (Math.log(bsr) - Math.log(b[0])) * slope;
+      return Math.max(Math.exp(logUnits), 0.05);
+    }
+    for (var i = 0; i < ANCHORS.length - 1; i++) {
+      var lo = ANCHORS[i], hi = ANCHORS[i + 1];
+      if (bsr >= lo[0] && bsr <= hi[0]) {
+        var t = (Math.log(bsr) - Math.log(lo[0])) / (Math.log(hi[0]) - Math.log(lo[0]));
+        var lu = Math.log(lo[1]) + t * (Math.log(hi[1]) - Math.log(lo[1]));
+        return Math.exp(lu);
+      }
+    }
+    return 0;
+  }
+
+  // ---- Formatting helpers -------------------------------------------------
+  function commas(n) {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function roundUnits(u) {
+    if (u >= 1000) return Math.round(u / 100) * 100;
+    if (u >= 100) return Math.round(u / 10) * 10;
+    return Math.round(u);
+  }
+  function fmtMonthlyUnits(u) {
+    var r = roundUnits(u);
+    if (r < 1) return "<1";
+    return commas(r);
+  }
+  function fmtDailyUnits(u) {
+    var d = u / 30;
+    if (d < 1) {
+      var one = Math.round(d * 10) / 10;
+      return one < 0.1 ? "<0.1" : one.toString();
+    }
+    if (d < 10) return (Math.round(d * 10) / 10).toString();
+    return commas(Math.round(d));
+  }
+  function money(n) {
+    if (!isFinite(n) || n < 0) n = 0;
+    return '$' + commas(Math.round(n));
+  }
+  function moneyDaily(n) {
+    if (!isFinite(n) || n < 0) n = 0;
+    if (n > 0 && n < 10) return '$' + (Math.round(n * 10) / 10).toString();
+    return '$' + commas(Math.round(n));
+  }
+
+  // ---- Main ---------------------------------------------------------------
+  function estimate() {
+    clearError();
+
+    var bsrRaw = $('si-bsr').value.trim();
+    var priceRaw = $('si-price').value.trim();
+
+    var bsr = parseInt(bsrRaw.replace(/,/g, ''), 10);
+    var price = parseFloat(priceRaw.replace(/[^0-9.]/g, ''));
+
+    if (!bsrRaw || isNaN(bsr) || bsr < 1) {
+      showError("Enter a Best Seller Rank of 1 or higher to run an estimate.");
+      $('si-bsr').focus();
+      return;
+    }
+    if (!priceRaw || isNaN(price) || price < 0) {
+      showError("Enter a list price so we can estimate revenue.");
+      $('si-price').focus();
+      return;
+    }
+
+    var monthlyUnitsRaw = estimateMonthlyUnits(bsr);
+    var monthlyRevenueRaw = monthlyUnitsRaw * price;
+    var dailyUnitsRaw = monthlyUnitsRaw / 30;
+    var dailyRevenueRaw = monthlyRevenueRaw / 30;
+
+    $('si-units').textContent = fmtMonthlyUnits(monthlyUnitsRaw);
+    $('si-revenue').textContent = money(monthlyRevenueRaw);
+    $('si-dunits').textContent = fmtDailyUnits(monthlyUnitsRaw);
+    $('si-drevenue').textContent = moneyDaily(dailyRevenueRaw);
+
+    $('si-note').textContent =
+      "This is a guidance estimate for the US marketplace, based on a blended " +
+      "model of how sales track with Best Seller Rank. Actual volume varies by " +
+      "category, season, and listing quality, so treat it as a directional range " +
+      "rather than an exact figure.";
+
+    // stash a plain-text summary for the copy button
+    resultsBox.setAttribute('data-summary', buildSummary(bsr, price));
+
+    resultsBox.classList.add('show');
+    postHeight();
+  }
+
+  function buildSummary(bsr, price) {
+    var mu = estimateMonthlyUnits(bsr);
+    var lines = [
+      "Amazon Sales Estimate (US)",
+      "Best Seller Rank: #" + commas(bsr),
+      "List price: $" + (Math.round(price * 100) / 100),
+      "Estimated monthly sales: ~" + fmtMonthlyUnits(mu) + " units",
+      "Estimated monthly revenue: ~" + money(mu * price),
+      "Estimated daily sales: ~" + fmtDailyUnits(mu) + " units",
+      "Estimated daily revenue: ~" + moneyDaily((mu * price) / 30),
+      "Estimated by the Stack Influence Amazon Sales Estimator"
+    ];
+    return lines.join("\n");
+  }
+
+  function fallbackCopy(str, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = str; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta); if (cb) cb();
+  }
+
+  $('si-copy').addEventListener('click', function () {
+    var copyBtn = this;
+    var summary = resultsBox.getAttribute('data-summary') || "";
+    if (!summary) return;
+    var done = function () {
+      copyBtn.textContent = 'Copied';
+      copyBtn.classList.add('done');
+      setTimeout(function () { copyBtn.textContent = 'Copy estimate'; copyBtn.classList.remove('done'); }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(summary).then(done).catch(function () { fallbackCopy(summary, done); });
+    } else { fallbackCopy(summary, done); }
+  });
+
+  btn.addEventListener('click', estimate);
+  $('si-bsr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); estimate(); } });
+  $('si-price').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); estimate(); } });
+})();
+</script>
+</body>
+</html>
