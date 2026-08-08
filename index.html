@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Amazon Sales Estimator | Stack Influence</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --si-purple: #8551f5;
+    --si-purple-deep: #642eff;
+    --si-purple-light: #c3a4ff;
+    --si-purple-wash: #f0ecfb;
+    --si-pink: #ffabb9;
+    --si-pink-light: #fbe1e6;
+    --si-pink-over: #dd5290;
+    --si-ink: #141a21;
+    --si-grey: #667085;
+    --si-line: #e6e2ee;
+    --si-paper: #ffffff;
+    --si-bg: #f9f8f4;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: transparent; }
+
+  body {
+    font-family: 'Inter Tight', Arial, sans-serif;
+    color: var(--si-ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .si-wrap { max-width: 940px; margin: 0 auto; padding: 8px 20px 40px; }
+
+  /* ---- Input bar (the only thing above the fold) ---- */
+  .si-panel {
+    background: var(--si-paper);
+    border: 1px solid var(--si-line);
+    border-radius: 16px;
+    padding: 22px;
+  }
+
+  .si-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    align-items: end;
+  }
+  @media (max-width: 720px) {
+    .si-row { grid-template-columns: 1fr; gap: 14px; }
+  }
+
+  .si-field { display: flex; flex-direction: column; min-width: 0; }
+  .si-label { font-size: 13px; font-weight: 600; margin-bottom: 7px; color: var(--si-ink); }
+  .si-hint { font-size: 11px; font-weight: 500; color: var(--si-grey); margin-top: 6px; }
+
+  .si-input, .si-select {
+    width: 100%;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--si-ink);
+    background: var(--si-bg);
+    border: 1px solid var(--si-line);
+    border-radius: 10px;
+    padding: 12px 13px;
+    transition: border-color .15s, box-shadow .15s;
+    appearance: none;
+    height: 46px;
+  }
+  .si-input::placeholder { color: #a4adba; }
+
+  /* Price field with a leading dollar sign */
+  .si-money { position: relative; }
+  .si-money .si-cur {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    font-size: 15px; color: var(--si-grey); pointer-events: none;
+  }
+  .si-money .si-input { padding-left: 26px; }
+
+  .si-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+    padding-right: 38px;
+    cursor: pointer;
+  }
+  .si-input:focus, .si-select:focus {
+    outline: none;
+    border-color: var(--si-purple);
+    box-shadow: 0 0 0 3px var(--si-purple-wash);
+    background: var(--si-paper);
+  }
+  /* hide number spinners */
+  .si-input[type=number]::-webkit-outer-spin-button,
+  .si-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .si-input[type=number] { -moz-appearance: textfield; }
+
+  .si-actions { margin-top: 16px; }
+  .si-btn {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--si-purple);
+    border: none;
+    border-radius: 10px;
+    padding: 15px 20px;
+    cursor: pointer;
+    transition: background .15s, transform .05s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+  }
+  .si-btn:hover:not(:disabled) { background: var(--si-purple-deep); }
+  .si-btn:active:not(:disabled) { transform: translateY(1px); }
+
+  /* ---- Everything below is hidden until estimate ---- */
+  .si-results { margin-top: 26px; display: none; }
+  .si-results.show { display: block; animation: si-fade .3s ease both; }
+  @keyframes si-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .si-results-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+  }
+  .si-results-title {
+    font-family: 'Instrument Serif', 'Times New Roman', serif;
+    font-size: 28px; font-weight: 400; margin: 0;
+  }
+  .si-results-title em { font-style: italic; color: var(--si-purple); }
+  .si-copy {
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--si-purple-deep); background: var(--si-purple-wash);
+    border: none; border-radius: 8px; padding: 8px 15px; cursor: pointer;
+    transition: background .15s;
+  }
+  .si-copy:hover { background: #e5dcfb; }
+  .si-copy.done { background: var(--si-purple); color: #fff; }
+
+  /* Hero: monthly units + monthly revenue */
+  .si-hero {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 13px;
+  }
+  @media (max-width: 560px) { .si-hero { grid-template-columns: 1fr; } }
+
+  .si-stat {
+    border: 1px solid var(--si-line); border-radius: 14px;
+    padding: 20px; background: var(--si-paper);
+    animation: si-pop .3s ease both;
+  }
+  .si-stat.primary {
+    background: var(--si-purple-wash); border-color: var(--si-purple-light);
+  }
+  @keyframes si-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .si-stat-label { font-size: 13px; font-weight: 600; color: var(--si-grey); margin-bottom: 8px; }
+  .si-stat.primary .si-stat-label { color: var(--si-purple-deep); }
+  .si-stat-value {
+    font-family: 'Instrument Serif', 'Times New Roman', serif;
+    font-size: clamp(26px, 5vw, 40px); line-height: 1.05; font-weight: 400; color: var(--si-ink);
+    white-space: nowrap;
+  }
+  .si-stat.primary .si-stat-value { color: var(--si-purple-deep); }
+  .si-stat-unit { font-family: 'Inter Tight', sans-serif; font-size: 14px; font-weight: 500; color: var(--si-grey); margin-top: 6px; }
+
+  /* Supporting row: daily breakdown */
+  .si-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .si-sub { grid-template-columns: 1fr; } }
+  .si-sub .si-stat-value { font-size: clamp(20px, 3.5vw, 28px); }
+
+  /* Disclaimer */
+  .si-note {
+    margin-top: 16px; font-size: 12px; color: var(--si-grey);
+    background: var(--si-bg); border: 1px solid var(--si-line);
+    border-radius: 10px; padding: 12px 14px;
+  }
+
+  /* ---- Error ---- */
+  .si-error {
+    display: none; margin-top: 20px; padding: 14px 16px; border-radius: 12px;
+    background: var(--si-pink-light); border: 1px solid var(--si-pink);
+    color: #8a2338; font-size: 14px;
+  }
+  .si-error.show { display: block; }
+</style>
+</head>
+<body>
+<div class="si-wrap">
+
+  <!-- INPUT BAR: the only thing visible above the fold -->
+  <div class="si-panel">
+    <div class="si-row">
+      <div class="si-field">
+        <label class="si-label" for="si-bsr">Best Seller Rank (BSR)</label>
+        <input class="si-input" id="si-bsr" type="number" min="1" step="1" placeholder="e.g. 5000" inputmode="numeric" />
+        <span class="si-hint">Find this in the product details on Amazon</span>
+      </div>
+      <div class="si-field">
+        <label class="si-label" for="si-price">List price</label>
+        <div class="si-money">
+          <span class="si-cur">$</span>
+          <input class="si-input" id="si-price" type="number" min="0" step="0.01" placeholder="29.99" inputmode="decimal" />
+        </div>
+        <span class="si-hint">The current selling price</span>
+      </div>
+      <div class="si-field">
+        <label class="si-label" for="si-category">Category</label>
+        <select class="si-select" id="si-category"></select>
+        <span class="si-hint">The product's main Amazon category</span>
+      </div>
+    </div>
+    <div class="si-actions">
+      <button class="si-btn" id="si-estimate" type="button">
+        <span class="si-btn-label">Estimate sales</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="si-error" id="si-error"></div>
+
+  <!-- RESULTS: hidden until estimate -->
+  <div class="si-results" id="si-results">
+    <div class="si-results-head">
+      <h2 class="si-results-title">Your <em>estimate</em></h2>
+      <button class="si-copy" id="si-copy" type="button">Copy estimate</button>
+    </div>
+
+    <div class="si-hero">
+      <div class="si-stat primary">
+        <div class="si-stat-label">Estimated monthly sales</div>
+        <div class="si-stat-value" id="si-units">0</div>
+        <div class="si-stat-unit">units per month</div>
+      </div>
+      <div class="si-stat">
+        <div class="si-stat-label">Estimated monthly revenue</div>
+        <div class="si-stat-value" id="si-revenue">$0</div>
+        <div class="si-stat-unit">at your list price</div>
+      </div>
+    </div>
+
+    <div class="si-sub">
+      <div class="si-stat">
+        <div class="si-stat-label">Estimated daily sales</div>
+        <div class="si-stat-value" id="si-dunits">0</div>
+        <div class="si-stat-unit">units per day</div>
+      </div>
+      <div class="si-stat">
+        <div class="si-stat-label">Estimated daily revenue</div>
+        <div class="si-stat-value" id="si-drevenue">$0</div>
+        <div class="si-stat-unit">per day</div>
+      </div>
+    </div>
+
+    <div class="si-note" id="si-note"></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var btn = $('si-estimate');
+  var resultsBox = $('si-results');
+  var errorBox = $('si-error');
+
+  // ---- Auto-resize: tell the parent Webflow page how tall the iframe should be ----
+  function postHeight() {
+    var h = document.body.scrollHeight;
+    if (window.parent) { window.parent.postMessage({ siEstHeight: h }, "*"); }
+  }
+  var ro = new ResizeObserver(postHeight);
+  ro.observe(document.body);
+  window.addEventListener('load', postHeight);
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add('show');
+    resultsBox.classList.remove('show');
+    postHeight();
+  }
+  function clearError() {
+    errorBox.classList.remove('show');
+    errorBox.textContent = "";
+  }
+
+  // ---- BSR to monthly-sales model ----------------------------------------
+  // The base curve below is calibrated to a mid-sized, high-velocity US category
+  // (Home & Kitchen), which is the common reference category for BSR-to-sales
+  // tables. Anchor points are interpolated on a log-log scale (a local power law
+  // between each pair), the same shape the paid tools fit to their private data.
+  // A per-category multiplier (CATEGORIES, below) then scales the base curve up or
+  // down, because the same BSR means very different unit volumes across categories
+  // (a #10,000 rank is ~5 sales/day in Books but ~200/day in Kitchen). Deterministic:
+  // the same BSR, price, and category always return the same numbers. This is a
+  // guidance estimate, not a guarantee; real curves vary by season and listing.
+  // ---- BSR to monthly-sales model (v2, real data) ------------------------
+  // Fitted from an August 2026 analysis of 24,735 real Amazon US products
+  // (Keepa API), ~100 products per BSR band across 18 categories, anchored to
+  // Amazon's own disclosed "X+ bought in past month" number where present
+  // (9,300+ products carried it). Each category has its OWN fitted curve, sampled
+  // at 16 BSR grid points as [BSR, monthly units]. This replaces the earlier
+  // single-curve-plus-multiplier model. Interpolation is log-log between points,
+  // because the relationship is a power law. Deterministic: same BSR, price, and
+  // category always return the same numbers. Still a directional estimate.
+  var CURVES = {
+    "home": [[10,15975.6],[20,10764],[50,6206.31],[100,4134.04],[200,2738.96],[500,1590.22],[1000,914.27],[2000,599.28],[5000,555.42],[10000,304.84],[20000,173.31],[50000,89.43],[100000,61.53],[200000,38.84],[500000,16.57],[1000000,5.31]],
+    "kitchen": [[10,10157.9],[20,7673.56],[50,4526.45],[100,3066.24],[200,2066.43],[500,1227.08],[1000,681.33],[2000,495.03],[5000,477.73],[10000,278.96],[20000,142.21],[50000,71.37],[100000,61.15],[200000,25.4],[500000,2.99],[1000000,0.55]],
+    "beauty": [[10,58941.4],[20,33694.6],[50,33340.1],[100,11191],[200,7166.81],[500,3978.43],[1000,2356.97],[2000,1352.03],[5000,1152.13],[10000,734.14],[20000,343.04],[50000,189.74],[100000,111.07],[200000,67.96],[500000,9],[1000000,0.5]],
+    "health": [[10,166132],[20,99848.2],[50,49088.9],[100,29070.6],[200,17096.9],[500,12381.4],[1000,5606.8],[2000,2365.98],[5000,1457.31],[10000,929.5],[20000,516.73],[50000,277.53],[100000,117.26],[200000,66.88],[500000,7.21],[1000000,0.5]],
+    "grocery": [[10,217668],[20,123423],[50,55947],[100,31205.2],[200,17271.5],[500,7907.57],[1000,3411.31],[2000,2060.22],[5000,1414.21],[10000,1009.05],[20000,413.57],[50000,120.08],[100000,71.7],[200000,18.88],[500000,0.85],[1000000,0.05]],
+    "toys": [[10,41224],[20,22374.2],[50,11597.7],[100,7383.71],[200,4672.93],[500,3178.55],[1000,1952.77],[2000,960],[5000,589.15],[10000,383.36],[20000,200.06],[50000,141.42],[100000,67.66],[200000,44.02],[500000,4.11],[1000000,0.21]],
+    "electronics": [[10,21851.3],[20,15114.1],[50,7552.33],[100,4526.45],[200,2694.62],[500,1358.31],[1000,736.95],[2000,509.76],[5000,291.99],[10000,132.97],[20000,78.46],[50000,47.84],[100000,16.34],[200000,2.63],[500000,0.62],[1000000,0.5]],
+    "computers": [[10,207455],[20,86728],[50,25700.9],[100,10475.9],[200,4219.76],[500,1269.81],[1000,372.04],[2000,186.04],[5000,73.46],[10000,46.37],[20000,12.63],[50000,2.27],[100000,1],[200000,0.81],[500000,0.15],[1000000,0.05]],
+    "sports": [[10,10163.9],[20,7008.4],[50,4173.29],[100,2846.78],[200,1932.12],[500,1158.06],[1000,685.57],[2000,490.98],[5000,389.68],[10000,289.43],[20000,139.18],[50000,83.36],[100000,54.16],[200000,32.48],[500000,5.6],[1000000,0.6]],
+    "tools": [[10,10421.7],[20,7453.6],[50,4670.41],[100,3307.94],[200,2332.28],[500,1470.05],[1000,893.34],[2000,667.69],[5000,564.05],[10000,426.45],[20000,208.95],[50000,130.17],[100000,82.55],[200000,43.94],[500000,12.01],[1000000,2.43]],
+    "pet": [[10,59705.7],[20,34227.3],[50,16277.6],[100,9406.25],[200,5396.3],[500,2590.5],[1000,1406.52],[2000,652.22],[5000,552.5],[10000,325.39],[20000,99.25],[50000,74.47],[100000,26.99],[200000,3.83],[500000,0.55],[1000000,0.32]],
+    "office": [[10,18540.5],[20,18540.5],[50,10736.6],[100,5725.16],[200,3664.58],[500,2032.92],[1000,1261.59],[2000,651.13],[5000,651.13],[10000,324.94],[20000,176.62],[50000,105.41],[100000,65.43],[200000,23.24],[500000,2.58],[1000000,0.5]],
+    "baby": [[10,121150],[20,72900.2],[50,28026.7],[100,13843.1],[200,6774.11],[500,2635.9],[1000,1292.66],[2000,504.77],[5000,245.88],[10000,141.42],[20000,70.71],[50000,22.43],[100000,4.67],[200000,1.39],[500000,0.05],[1000000,0.05]],
+    "garden": [[10,19667],[20,14753.8],[50,7388.05],[100,4850.7],[200,3167.11],[500,1803.64],[1000,1121.73],[2000,692.1],[5000,503.24],[10000,305.97],[20000,206.74],[50000,94.69],[100000,62.32],[200000,34.82],[500000,4.83],[1000000,1.64]],
+    "automotive": [[10,29766.1],[20,18811],[50,9918.87],[100,6185.4],[200,3833.23],[500,2037.6],[1000,1193.29],[2000,769.21],[5000,416.42],[10000,253.11],[20000,165.02],[50000,78.6],[100000,61.11],[200000,28.28],[500000,11.31],[1000000,3.49]],
+    "clothing": [[10,6483.09],[20,4568.63],[50,2804.25],[100,1956.18],[200,1358.11],[500,838.77],[1000,466.12],[2000,337.03],[5000,337.03],[10000,253.2],[20000,132.13],[50000,60.25],[100000,46.29],[200000,18.94],[500000,11.15],[1000000,4.94]],
+    "beautylux": [[10,37665.7],[20,21707.5],[50,10397],[100,6039.62],[200,3483.32],[500,1683.93],[1000,917.36],[2000,600.27],[5000,277.4],[10000,139.7],[20000,97.29],[50000,42.45],[100000,25.32],[200000,12.53],[500000,1.62],[1000000,0.5]],
+    "books": [[10,69775.1],[20,45533.4],[50,25746.5],[100,16904.8],[200,11037.9],[500,6286.31],[1000,3468.76],[2000,2520],[5000,1953.73],[10000,1087.73],[20000,622.38],[50000,359.64],[100000,205.53],[200000,113.86],[500000,31.74],[1000000,7.52]],
+    "_all": [[10,26511.2],[20,16947.7],[50,9080.73],[100,5730.11],[200,3593.88],[500,1940.84],[1000,1153.86],[2000,705.73],[5000,497.65],[10000,291.29],[20000,141.42],[50000,78.4],[100000,61.55],[200000,23.98],[500000,5.79],[1000000,1.25]]
+  };
+
+  // ---- Category dropdown list (labels 1:1 with the fitted curves) ---------
+  //   band: display band half-width. Default 0.30 (+/-30%). Two categories widen
+  //         to 0.45 in specific rank regions per the data caveats (see estimate()).
+  var CATEGORIES = [
+    { id: "home",        t: "Home & Kitchen" },
+    { id: "kitchen",     t: "Kitchen & Dining" },
+    { id: "beauty",      t: "Beauty & Personal Care" },
+    { id: "health",      t: "Health & Household" },
+    { id: "grocery",     t: "Grocery & Gourmet Food" },
+    { id: "toys",        t: "Toys & Games" },
+    { id: "electronics", t: "Electronics" },
+    { id: "computers",   t: "Computers & Accessories" },
+    { id: "sports",      t: "Sports & Outdoors" },
+    { id: "tools",       t: "Tools & Home Improvement" },
+    { id: "pet",         t: "Pet Supplies" },
+    { id: "office",      t: "Office Products" },
+    { id: "baby",        t: "Baby" },
+    { id: "garden",      t: "Patio, Lawn & Garden" },
+    { id: "automotive",  t: "Automotive" },
+    { id: "clothing",    t: "Clothing, Shoes & Jewelry" },
+    { id: "beautylux",   t: "Arts, Crafts & Sewing" },
+    { id: "books",       t: "Books" }
+  ];
+
+  // populate the category dropdown (Home & Kitchen first / default)
+  var catSel = $('si-category');
+  CATEGORIES.forEach(function (c, i) {
+    var o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.t;
+    if (i === 0) o.selected = true;
+    catSel.appendChild(o);
+  });
+  function currentCategoryId() {
+    return catSel.value;
+  }
+  function currentCategoryName() {
+    var v = catSel.value;
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      if (CATEGORIES[i].id === v) return CATEGORIES[i].t;
+    }
+    return "this category";
+  }
+
+  // Log-log interpolation over a category's fitted grid.
+  // - BSR at/below first point: clamp to first value.
+  // - BSR at/above last point: extend the slope of the final segment (log-log).
+  // - Between points: linear on ln(bsr) vs ln(units).
+  function interpCurve(pts, bsr) {
+    if (bsr <= pts[0][0]) return pts[0][1];
+    var n = pts.length;
+    if (bsr >= pts[n - 1][0]) {
+      var a = pts[n - 2], b = pts[n - 1];
+      var slope = (Math.log(b[1]) - Math.log(a[1])) / (Math.log(b[0]) - Math.log(a[0]));
+      var lu = Math.log(b[1]) + (Math.log(bsr) - Math.log(b[0])) * slope;
+      return Math.max(Math.exp(lu), 0);
+    }
+    for (var i = 0; i < n - 1; i++) {
+      var lo = pts[i], hi = pts[i + 1];
+      if (bsr >= lo[0] && bsr <= hi[0]) {
+        var t = (Math.log(bsr) - Math.log(lo[0])) / (Math.log(hi[0]) - Math.log(lo[0]));
+        var l = Math.log(lo[1]) + t * (Math.log(hi[1]) - Math.log(lo[1]));
+        return Math.exp(l);
+      }
+    }
+    return pts[n - 1][1];
+  }
+
+  // Legacy Books fallback curve (pre-v2 model): the old single base curve at
+  // its Books multiplier. Used only to blend up Books head-of-curve, which the
+  // new proxy-based Books data can underestimate below BSR ~2,000.
+  function legacyBooksUnits(bsr) {
+    var A = [[1,15000],[10,8000],[100,2800],[500,950],[1000,600],[2000,380],[5000,180],[10000,90],[50000,18],[100000,7],[500000,1],[1000000,0.3]];
+    var u = interpCurve(A, bsr);
+    return u * 0.16;
+  }
+
+  // Point estimate for a category id at a BSR, applying category-specific rules.
+  function pointEstimate(catId, bsr) {
+    var pts = CURVES[catId] || CURVES["_all"];
+    var units = interpCurve(pts, bsr);
+    // Books: proxy-only (no "bought in past month" badge on books). Below ~2,000
+    // the fitted curve can underestimate, so blend up with the legacy curve.
+    if (catId === "books" && bsr < 2000) {
+      units = Math.max(units, legacyBooksUnits(bsr));
+    }
+    return units;
+  }
+
+  // Display band half-width for a category/BSR (0.30 default, 0.45 where flagged).
+  function bandFor(catId, bsr) {
+    if (catId === "books") return 0.45;                       // proxy-only everywhere
+    if (catId === "clothing" && bsr < 1000) return 0.45;      // variation-family head
+    return 0.30;
+  }
+
+  // ---- Formatting helpers -------------------------------------------------
+  function commas(n) {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function roundUnits(u) {
+    if (u >= 1000) return Math.round(u / 100) * 100;
+    if (u >= 100) return Math.round(u / 10) * 10;
+    return Math.round(u);
+  }
+  function fmtMonthlyUnits(u) {
+    var r = roundUnits(u);
+    if (r < 1) return "<1";
+    return commas(r);
+  }
+  function fmtDailyUnits(u) {
+    var d = u / 30.4;
+    if (d < 1) {
+      var one = Math.round(d * 10) / 10;
+      return one < 0.1 ? "<0.1" : one.toString();
+    }
+    if (d < 10) return (Math.round(d * 10) / 10).toString();
+    return commas(Math.round(d));
+  }
+  function money(n) {
+    if (!isFinite(n) || n < 0) n = 0;
+    return '$' + commas(Math.round(n));
+  }
+  function moneyDaily(n) {
+    if (!isFinite(n) || n < 0) n = 0;
+    if (n > 0 && n < 10) return '$' + (Math.round(n * 10) / 10).toString();
+    return '$' + commas(Math.round(n));
+  }
+
+  // ---- Range formatters (low-high) ---------------------------------------
+  function fmtUnitRange(lo, hi) {
+    var rl = roundUnits(lo), rh = roundUnits(hi);
+    if (rh < 1) return "<1";
+    if (rl < 1) rl = 1;
+    if (rl === rh) return commas(rl);
+    return commas(rl) + " - " + commas(rh);
+  }
+  function dailyVal(u) {
+    var d = u / 30.4;
+    if (d < 1) {
+      var one = Math.round(d * 10) / 10;
+      return one < 0.1 ? 0.1 : one;
+    }
+    if (d < 10) return Math.round(d * 10) / 10;
+    return Math.round(d);
+  }
+  function fmtDailyRange(lo, hi) {
+    var dl = dailyVal(lo), dh = dailyVal(hi);
+    var sl = (dl < 1 && dl <= 0.1) ? "<0.1" : dl.toString();
+    var sh = (dh < 1 && dh <= 0.1) ? "<0.1" : dh.toString();
+    if (sl === sh) return typeof dh === 'number' && dh >= 10 ? commas(dh) : sh;
+    var left = (dl >= 10) ? commas(dl) : sl;
+    var right = (dh >= 10) ? commas(dh) : sh;
+    return left + " - " + right;
+  }
+  function moneyRange(lo, hi) {
+    var l = Math.round(lo), h = Math.round(hi);
+    if (l === h) return '$' + commas(h);
+    return '$' + commas(l) + " - $" + commas(h);
+  }
+  function moneyDailyRange(lo, hi) {
+    return moneyDaily(lo / 30.4) + " - " + moneyDaily(hi / 30.4);
+  }
+
+  // ---- Main ---------------------------------------------------------------
+  function estimate() {
+    clearError();
+
+    var bsrRaw = $('si-bsr').value.trim();
+    var priceRaw = $('si-price').value.trim();
+
+    var bsr = parseInt(bsrRaw.replace(/,/g, ''), 10);
+    var price = parseFloat(priceRaw.replace(/[^0-9.]/g, ''));
+
+    if (!bsrRaw || isNaN(bsr) || bsr < 1) {
+      showError("Enter a Best Seller Rank of 1 or higher to run an estimate.");
+      $('si-bsr').focus();
+      return;
+    }
+    if (!priceRaw || isNaN(price) || price < 0) {
+      showError("Enter a list price so we can estimate revenue.");
+      $('si-price').focus();
+      return;
+    }
+
+    var catId = currentCategoryId();
+    var monthlyUnitsRaw = pointEstimate(catId, bsr);
+
+    // Present as a range, not a false-precise point. Band is +/-30% by default,
+    // widening to +/-45% for the two data-flagged category regions (Books, and
+    // Clothing head-of-curve).
+    var band = bandFor(catId, bsr);
+    var loUnits = monthlyUnitsRaw * (1 - band);
+    var hiUnits = monthlyUnitsRaw * (1 + band);
+
+    var loRev = loUnits * price;
+    var hiRev = hiUnits * price;
+
+    $('si-units').textContent = fmtUnitRange(loUnits, hiUnits);
+    $('si-revenue').textContent = moneyRange(loRev, hiRev);
+    $('si-dunits').textContent = fmtDailyRange(loUnits, hiUnits);
+    $('si-drevenue').textContent = moneyDailyRange(loRev, hiRev);
+
+    var band100 = Math.round(band * 100);
+    $('si-note').textContent =
+      "Estimate for " + currentCategoryName() + " on Amazon.com (US), based on an " +
+      "August 2026 analysis of 24,000+ real Amazon US products, anchored to Amazon's " +
+      "own disclosed \"bought in past month\" sales data. Shown as a range of about +/-" +
+      band100 + "% because actual volume varies with season, listing quality, and " +
+      "subcategory. Enter the product's MAIN category rank, and treat this as " +
+      "directional, not exact.";
+
+    // stash a plain-text summary for the copy button
+    resultsBox.setAttribute('data-summary', buildSummary(bsr, price));
+
+    resultsBox.classList.add('show');
+    postHeight();
+  }
+
+  function buildSummary(bsr, price) {
+    var catId = currentCategoryId();
+    var mu = pointEstimate(catId, bsr);
+    var band = bandFor(catId, bsr);
+    var loU = mu * (1 - band), hiU = mu * (1 + band);
+    var loR = loU * price, hiR = hiU * price;
+    var lines = [
+      "Amazon Sales Estimate (US)",
+      "Category: " + currentCategoryName(),
+      "Best Seller Rank: #" + commas(bsr),
+      "List price: $" + (Math.round(price * 100) / 100),
+      "Estimated monthly sales: " + fmtUnitRange(loU, hiU) + " units",
+      "Estimated monthly revenue: " + moneyRange(loR, hiR),
+      "Estimated daily sales: " + fmtDailyRange(loU, hiU) + " units",
+      "Estimated daily revenue: " + moneyDailyRange(loR, hiR),
+      "Range reflects roughly +/-" + Math.round(band * 100) + "%; directional, not exact",
+      "Estimated by the Stack Influence Amazon Sales Estimator"
+    ];
+    return lines.join("\n");
+  }
+
+  function fallbackCopy(str, cb) {
+    var ta = document.createElement('textarea');
+    ta.value = str; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta); if (cb) cb();
+  }
+
+  $('si-copy').addEventListener('click', function () {
+    var copyBtn = this;
+    var summary = resultsBox.getAttribute('data-summary') || "";
+    if (!summary) return;
+    var done = function () {
+      copyBtn.textContent = 'Copied';
+      copyBtn.classList.add('done');
+      setTimeout(function () { copyBtn.textContent = 'Copy estimate'; copyBtn.classList.remove('done'); }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(summary).then(done).catch(function () { fallbackCopy(summary, done); });
+    } else { fallbackCopy(summary, done); }
+  });
+
+  btn.addEventListener('click', estimate);
+  catSel.addEventListener('change', function () {
+    if (resultsBox.classList.contains('show')) estimate();
+  });
+  $('si-bsr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); estimate(); } });
+  $('si-price').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); estimate(); } });
+})();
+</script>
+</body>
+</html>
